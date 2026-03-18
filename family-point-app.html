@@ -101,10 +101,12 @@ const DEFAULT_TASKS = [
   { id: 't7', name: '部屋の片付け', points: 10, icon: '🧹' },
 ];
 const DEFAULT_REWARDS = [
-  { id: 'r1', name: 'ゲーム 30分', cost: 30, minutes: 30, icon: '🎮' },
-  { id: 'r2', name: 'ゲーム 60分', cost: 60, minutes: 60, icon: '🕹' },
-  { id: 'r3', name: '動画 30分', cost: 30, minutes: 30, icon: '📺' },
-  { id: 'r4', name: '動画 60分', cost: 60, minutes: 60, icon: '🎬' },
+  { id: 'r1', name: 'ゲーム 15分', cost: 15, minutes: 15, icon: '🎮' },
+  { id: 'r2', name: 'ゲーム 30分', cost: 30, minutes: 30, icon: '🎮' },
+  { id: 'r3', name: 'ゲーム 60分', cost: 60, minutes: 60, icon: '🎮' },
+  { id: 'r4', name: '動画 15分', cost: 15, minutes: 15, icon: '📺' },
+  { id: 'r5', name: '動画 30分', cost: 30, minutes: 30, icon: '📺' },
+  { id: 'r6', name: '動画 60分', cost: 60, minutes: 60, icon: '📺' },
 ];
 
 function defaultState() {
@@ -250,13 +252,20 @@ function renderSetup() {
   const wrap = el('div');
   wrap.append(el('p', { style: S.heading }, '家族ポイントアプリ'));
   wrap.append(el('p', { style: { ...S.muted, marginBottom: '1.5rem' } }, '家族のメンバーを登録してください'));
-  let members = [{ id: 'm1', name: '', role: 'parent' }, { id: 'm2', name: '', role: 'parent' }, { id: 'm3', name: '', role: 'child' }];
+  const ICONS = { parent: ['👨', '👩'], child: ['👦', '👧'] };
+  let members = [{ id: 'm1', name: '', role: 'parent', icon: '👨' }, { id: 'm2', name: '', role: 'parent', icon: '👩' }, { id: 'm3', name: '', role: 'child', icon: '👦' }, { id: 'm4', name: '', role: 'child', icon: '👧' }];
   const fields = el('div');
   function rf() {
     fields.innerHTML = '';
     members.forEach((m, i) => {
       const row = el('div', { style: { ...S.row, marginBottom: '10px' } });
       row.append(el('span', { style: { ...S.badge, background: m.role === 'parent' ? 'var(--accent-light)' : 'var(--green-light)', color: m.role === 'parent' ? 'var(--accent-dark)' : 'var(--green-dark)', minWidth: '32px', textAlign: 'center' } }, m.role === 'parent' ? '親' : '子'));
+      const iconSel = el('div', { style: { display: 'flex', gap: '4px' } });
+      ICONS[m.role].forEach(ico => {
+        const btn = el('button', { style: { ...S.btn, padding: '4px 8px', fontSize: '18px', background: m.icon === ico ? 'var(--accent-light)' : 'transparent', borderColor: m.icon === ico ? 'var(--accent)' : 'var(--border-mid)' }, onClick: () => { members[i].icon = ico; rf(); } }, ico);
+        iconSel.append(btn);
+      });
+      row.append(iconSel);
       const input = el('input', { placeholder: m.role === 'parent' ? '親の名前' : '子の名前', value: m.name, style: { flex: '1' } });
       input.addEventListener('input', e => { members[i].name = e.target.value; });
       row.append(input);
@@ -276,7 +285,7 @@ function renderSetup() {
     const valid = members.filter(m => m.name.trim());
     if (valid.length < 2 || !valid.some(m => m.role === 'parent') || !valid.some(m => m.role === 'child')) return;
     state.setup = true;
-    state.members = valid.map(m => ({ ...m, name: m.name.trim(), points: 0, dailyPoints: 0, dailyDate: '', pin: m.role === 'parent' ? '1234' : '' }));
+    state.members = valid.map(m => ({ ...m, name: m.name.trim(), points: 0, dailyPoints: 0, dailyDate: '', pin: m.role === 'parent' ? '1234' : '', icon: m.icon || (m.role === 'parent' ? '👨' : '👧') }));
     saveState(); render();
   }}, 'はじめる'));
   app.append(wrap);
@@ -288,7 +297,7 @@ function renderPinEntry() {
   if (!member) { pinTarget = null; return render(); }
   const wrap = el('div', { style: { textAlign: 'center' } });
   wrap.append(
-    el('div', { style: { ...S.iconCircle('var(--accent-light)'), margin: '0 auto 12px', width: '56px', height: '56px', fontSize: '24px' } }, '👨'),
+    el('div', { style: { ...S.iconCircle('var(--accent-light)'), margin: '0 auto 12px', width: '56px', height: '56px', fontSize: '24px' } }, member.icon || '👨'),
     el('p', { style: { fontWeight: '600', margin: '0 0 4px' } }, member.name),
     el('p', { style: { ...S.muted, marginBottom: '1.5rem' } }, '保護者PINを入力してください')
   );
@@ -333,7 +342,7 @@ function renderLogin() {
       currentUser = m.id; currentTab = 'home'; saveState(); render();
     }});
     card.append(
-      el('div', { style: { ...S.iconCircle(isP ? 'var(--accent-light)' : 'var(--green-light)'), margin: '0 auto 10px', width: '56px', height: '56px', fontSize: '24px' } }, isP ? '👨' : '👧'),
+      el('div', { style: { ...S.iconCircle(isP ? 'var(--accent-light)' : 'var(--green-light)'), margin: '0 auto 10px', width: '56px', height: '56px', fontSize: '24px' } }, m.icon || (isP ? '👨' : '👧')),
       el('p', { style: { fontWeight: '600', margin: '0 0 4px', fontSize: '15px' } }, m.name),
       el('p', { style: { ...S.muted, fontSize: '12px' } }, isP ? '保護者' : 'こども')
     );
@@ -399,7 +408,7 @@ function renderChild(member) {
   const wrap = el('div');
   const header = el('div', { style: { ...S.row, justifyContent: 'space-between', marginBottom: '1rem' } });
   header.append(
-    el('div', { style: S.row }, el('div', { style: S.iconCircle('var(--green-light)') }, '👧'), el('span', { style: { fontWeight: '600' } }, member.name)),
+    el('div', { style: S.row }, el('div', { style: S.iconCircle('var(--green-light)') }, member.icon || '👧'), el('span', { style: { fontWeight: '600' } }, member.name)),
     el('button', { style: { ...S.btn, fontSize: '12px', padding: '4px 12px' }, onClick: () => { currentUser = null; render(); } }, 'ログアウト')
   );
   wrap.append(header);
@@ -527,7 +536,7 @@ function renderParent(member) {
   const wrap = el('div');
   const header = el('div', { style: { ...S.row, justifyContent: 'space-between', marginBottom: '1rem' } });
   header.append(
-    el('div', { style: S.row }, el('div', { style: S.iconCircle('var(--accent-light)') }, '👨'), el('span', { style: { fontWeight: '600' } }, member.name + '（保護者）')),
+    el('div', { style: S.row }, el('div', { style: S.iconCircle('var(--accent-light)') }, member.icon || '👨'), el('span', { style: { fontWeight: '600' } }, member.name + '（保護者）')),
     el('button', { style: { ...S.btn, fontSize: '12px', padding: '4px 12px' }, onClick: () => { currentUser = null; render(); } }, 'ログアウト')
   );
   wrap.append(header);
@@ -576,7 +585,7 @@ function renderParent(member) {
       const card = el('div', { style: { ...S.card, padding: '14px 1rem' } });
       const topRow = el('div', { style: { ...S.row, justifyContent: 'space-between', marginBottom: '10px' } });
       topRow.append(
-        el('div', { style: S.row }, el('div', { style: S.iconCircle('var(--green-light)') }, '👧'), el('span', { style: { fontWeight: '600' } }, c.name)),
+        el('div', { style: S.row }, el('div', { style: S.iconCircle('var(--green-light)') }, c.icon || '👧'), el('span', { style: { fontWeight: '600' } }, c.name)),
         el('p', { style: { margin: '0', fontSize: '22px', fontWeight: '600', color: 'var(--accent)' } }, totalPoints(c) + ' pt')
       );
       card.append(topRow);
