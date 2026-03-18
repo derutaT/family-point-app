@@ -415,7 +415,7 @@ function renderChild(member) {
   wrap.append(renderPointCard(member));
 
   const tabs = el('div', { style: S.tabBar });
-  ['つかう', '申請', 'タイマー'].forEach((t, i) => {
+  ['つかう', 'ためる', 'タイマー'].forEach((t, i) => {
     const keys = ['redeem', 'request', 'timer'];
     tabs.append(el('button', { style: S.tab(currentTab === keys[i]), onClick: () => { currentTab = keys[i]; render(); } }, t));
   });
@@ -445,7 +445,7 @@ function renderChild(member) {
   }
 
   if (currentTab === 'request') {
-    wrap.append(el('p', { style: S.subheading }, 'ポイントを申請する'));
+    wrap.append(el('p', { style: S.subheading }, 'ポイントをためる'));
     state.tasks.forEach(t => {
       const row = el('div', { style: { ...S.card, ...S.row, justifyContent: 'space-between', cursor: 'pointer', padding: '12px 1rem' }, onClick: () => {
         state.requests.push({ id: 'req' + Date.now(), taskId: t.id, taskName: t.name, points: t.points, childId: member.id, childName: member.name, date: new Date().toISOString(), status: 'pending' });
@@ -552,9 +552,9 @@ function renderParent(member) {
     currentTab = 'approve';
     const pending = state.requests.filter(r => r.status === 'pending');
     if (!pending.length) {
-      wrap.append(el('div', { style: { ...S.card, textAlign: 'center', padding: '2rem' } }, el('p', { style: { fontSize: '32px', margin: '0 0 8px' } }, '✅'), el('p', { style: S.muted }, '承認待ちの申請はありません')));
+      wrap.append(el('div', { style: { ...S.card, textAlign: 'center', padding: '2rem' } }, el('p', { style: { fontSize: '32px', margin: '0 0 8px' } }, '✅'), el('p', { style: S.muted }, 'やったよ申請はありません')));
     } else {
-      wrap.append(el('p', { style: S.subheading }, '承認待ち（' + pending.length + '件）'));
+      wrap.append(el('p', { style: S.subheading }, 'やったよ申請（' + pending.length + '件）'));
       pending.forEach(r => {
         const card = el('div', { style: { ...S.card, padding: '12px 1rem' } });
         const top = el('div', { style: { ...S.row, justifyContent: 'space-between', marginBottom: '8px' } });
