@@ -92,6 +92,10 @@ const app = document.getElementById('app');
 const STORAGE_KEY = 'family-point-app';
 
 const DEFAULT_TASKS = [
+  { id: 'a1', name: '朝の準備をした',       points:  5, icon: '🎒', autoApprove: true },
+  { id: 'a2', name: '着替えた',             points:  5, icon: '👕', autoApprove: true },
+  { id: 'a3', name: '早起きした',           points:  5, icon: '🌅', autoApprove: true },
+  { id: 'a4', name: '早寝した(昨日)',       points:  5, icon: '🌅', autoApprove: true },
   { id: 't1', name: '宿題を終わらせた',     points: 15, icon: '📖' },
   { id: 't2', name: '宿題を早く終わらせた', points: 20, icon: '📖' },
   { id: 't3', name: 'ピアノの練習',         points: 15, icon: '🎹' },
@@ -104,9 +108,9 @@ const DEFAULT_REWARDS = [
   { id: 'r1', name: 'ゲーム 15分', cost: 15, minutes: 15, icon: '🎮' },
   { id: 'r2', name: 'ゲーム 30分', cost: 30, minutes: 30, icon: '🎮' },
   { id: 'r3', name: 'ゲーム 60分', cost: 60, minutes: 60, icon: '🎮' },
-  { id: 'r4', name: '動画 15分', cost: 15, minutes: 15, icon: '📺' },
-  { id: 'r5', name: '動画 30分', cost: 30, minutes: 30, icon: '📺' },
-  { id: 'r6', name: '動画 60分', cost: 60, minutes: 60, icon: '📺' },
+  { id: 'r4', name: '動画 15分',   cost: 15, minutes: 15, icon: '📺' },
+  { id: 'r5', name: '動画 30分',   cost: 30, minutes: 30, icon: '📺' },
+  { id: 'r6', name: '動画 60分',   cost: 60, minutes: 60, icon: '📺' },
 ];
 
 function defaultState() {
@@ -136,9 +140,11 @@ function refreshDailyPoints() {
     if (m.role === 'child') {
       if (m.dailyPoints === undefined) m.dailyPoints = 0;
       if (!m.dailyDate) m.dailyDate = '';
+      if (!m.completedToday) { m.completedToday = {}; changed = true; }
       if (m.dailyDate !== today) {
         m.dailyPoints = state.dailyAmount || 60;
         m.dailyDate = today;
+        m.completedToday = {};
         changed = true;
       }
     }
@@ -445,11 +451,43 @@ function renderChild(member) {
   }
 
   if (currentTab === 'request') {
+    // ── かんたんタスク（承認不要・1日1回）──
+    const autoTasks = state.tasks.filter(t => t.autoApprove);
+    if (autoTasks.length) {
+      wrap.append(el('p', { style: S.subheading }, 'かんたんタスク（1日1回）'));
+      autoTasks.forEach(t => {
+        const today = getAppDay();
+        const done = (member.completedToday || {})[t.id] === today;
+        const row = el('div', { style: { ...S.card, ...S.row, justifyContent: 'space-between', padding: '10px 1rem', opacity: done ? '0.55' : '1' } });
+        row.append(
+          el('div', { style: S.row },
+            el('span', { style: { fontSize: '20px' } }, t.icon),
+            el('div', null,
+              el('p', { style: { margin: '0', fontSize: '14px', fontWeight: '600' } }, t.name),
+              el('p', { style: { ...S.muted, fontSize: '12px' } }, done ? '今日は済み' : '+' + t.points + 'pt')
+            )
+          ),
+          done
+            ? el('span', { style: { ...S.badge, background: 'var(--green-light)', color: 'var(--green-dark)', padding: '5px 12px' } }, '済み ✓')
+            : el('button', { style: { ...S.btnSuccess, fontSize: '13px' }, onClick: () => {
+                if (!member.completedToday) member.completedToday = {};
+                member.completedToday[t.id] = today;
+                member.points += t.points;
+                state.history.push({ type: 'auto', taskId: t.id, taskName: t.name, taskIcon: t.icon, points: t.points, childId: member.id, childName: member.name, date: new Date().toISOString() });
+                saveState(); render();
+              }}, 'やった！')
+        );
+        wrap.append(row);
+      });
+    }
+
+    // ── 通常タスク（親の承認が必要）──
+    const regularTasks = state.tasks.filter(t => !t.autoApprove);
     const cols = el('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', alignItems: 'start' } });
 
     const leftCol = el('div');
-    leftCol.append(el('p', { style: S.subheading }, 'ためる'));
-    state.tasks.forEach(t => {
+    leftCol.append(el('p', { style: S.subheading }, 'タスク申請'));
+    regularTasks.forEach(t => {
       const card = el('div', { style: { ...S.card, cursor: 'pointer', padding: '10px', marginBottom: '6px' }, onClick: () => {
         state.requests.push({ id: 'req' + Date.now(), taskId: t.id, taskName: t.name, taskIcon: t.icon, points: t.points, childId: member.id, childName: member.name, date: new Date().toISOString(), status: 'pending' });
         saveState(); render();
@@ -640,6 +678,7 @@ function renderParent(member) {
       if (h.type === 'approve') { label = '承認'; bg = 'var(--green-light)'; color = 'var(--green-dark)'; }
       else if (h.type === 'reject') { label = '却下'; bg = 'var(--red-light)'; color = 'var(--red-dark)'; }
       else if (h.type === 'redeem') { label = '使用'; bg = 'var(--amber-light)'; color = 'var(--amber-dark)'; }
+      else if (h.type === 'auto') { label = '即時'; bg = 'var(--blue-light)'; color = 'var(--blue-dark)'; }
       else { label = '手動'; bg = 'var(--blue-light)'; color = 'var(--blue-dark)'; }
 
       let detail = h.taskName || h.rewardName || ((h.points > 0 ? '+' : '') + h.points + 'pt');
@@ -672,8 +711,46 @@ function renderParent(member) {
     );
     wrap.append(dailyCard);
 
-    wrap.append(el('p', { style: S.subheading }, 'タスク一覧'));
-    state.tasks.forEach((t, i) => {
+    // ── 承認不要タスク ──
+    wrap.append(el('p', { style: S.subheading }, 'かんたんタスク（承認不要・1日1回）'));
+    state.tasks.filter(t => t.autoApprove).forEach((t, _i) => {
+      const i = state.tasks.indexOf(t);
+      const row = el('div', { style: { ...S.card, ...S.row, justifyContent: 'space-between', padding: '10px 1rem' } });
+      row.append(
+        el('div', { style: S.row }, el('span', null, t.icon), el('span', { style: { fontSize: '14px' } }, t.name)),
+        el('div', { style: S.row }, el('span', { style: { ...S.badge, background: 'var(--blue-light)', color: 'var(--blue-dark)' } }, t.points + 'pt'), el('button', { style: { ...S.btn, fontSize: '11px', padding: '2px 8px' }, onClick: () => { state.tasks.splice(i,1); saveState(); render(); } }, '✕'))
+      );
+      wrap.append(row);
+    });
+    wrap.append(el('button', { style: { ...S.btn, fontSize: '13px', marginBottom: '1.5rem' }, onClick: () => {
+      const ov = el('div', { style: { position: 'fixed', top: '0', left: '0', right: '0', bottom: '0', background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: '999', padding: '16px' } });
+      const md = el('div', { style: { background: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', width: '300px', maxWidth: '100%' } });
+      md.append(el('p', { style: { fontWeight: '600', margin: '0 0 12px', fontSize: '15px' } }, '+ かんたんタスクを追加'));
+      const nameInp = el('input', { placeholder: 'タスク名', style: { width: '100%', marginBottom: '8px' } });
+      const ptsInp = el('input', { placeholder: 'ポイント数（例: 5）', type: 'number', min: '1', style: { width: '100%', marginBottom: '16px' } });
+      md.append(nameInp, ptsInp);
+      const btns = el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } });
+      btns.append(
+        el('button', { style: S.btn, onClick: () => ov.remove() }, 'キャンセル'),
+        el('button', { style: S.btnPrimary, onClick: () => {
+          const name = nameInp.value.trim();
+          const pts = parseInt(ptsInp.value);
+          if (!name || isNaN(pts) || pts < 1) return;
+          state.tasks.push({ id: 'a' + Date.now(), name, points: pts, icon: '⭐', autoApprove: true });
+          saveState(); ov.remove(); render();
+        }}, 'OK')
+      );
+      md.append(btns);
+      ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+      ov.append(md);
+      document.body.append(ov);
+      setTimeout(() => nameInp.focus(), 50);
+    }}, '+ かんたんタスクを追加'));
+
+    // ── 通常タスク ──
+    wrap.append(el('p', { style: S.subheading }, 'タスク申請一覧（親の承認が必要）'));
+    state.tasks.filter(t => !t.autoApprove).forEach((t, _i) => {
+      const i = state.tasks.indexOf(t);
       const row = el('div', { style: { ...S.card, ...S.row, justifyContent: 'space-between', padding: '10px 1rem' } });
       row.append(
         el('div', { style: S.row }, el('span', null, t.icon), el('span', { style: { fontSize: '14px' } }, t.name)),
