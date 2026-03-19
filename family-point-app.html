@@ -92,13 +92,16 @@ const app = document.getElementById('app');
 const STORAGE_KEY = 'family-point-app';
 
 const DEFAULT_TASKS = [
-  { id: 't1', name: '宿題を終わらせた', points: 15, icon: '📖' },
-  { id: 't2', name: '宿題を早く終わらせた', points: 20, icon: '📖' },
-  { id: 't3', name: 'ピアノの練習をした', points: 15, icon: '🎹' },
-  { id: 't4', name: 'お風呂掃除', points: 10, icon: '🛁' },
-  { id: 't5', name: '食器洗い', points: 10, icon: '🍽' },
-  { id: 't6', name: '掃除機をかける', points: 10, icon: '🧹' },
-  { id: 't7', name: '部屋の片付け', points: 10, icon: '🧹' },
+  { id: 't1',  name: '宿題を終わらせた',       points: 15, icon: '📖' },
+  { id: 't2',  name: '宿題を早く終わらせた',   points: 20, icon: '📖' },
+  { id: 't3',  name: 'ピアノの練習をした',     points: 15, icon: '🎹' },
+  { id: 't4',  name: 'お風呂掃除(かるく)',     points: 10, icon: '🛁' },
+  { id: 't5',  name: 'お風呂掃除(しっかり)',   points: 20, icon: '🛁' },
+  { id: 't6',  name: '食器洗い(すこし)',       points: 10, icon: '🍽' },
+  { id: 't7',  name: '食器洗い(しっかり)',     points: 20, icon: '🍽' },
+  { id: 't8',  name: '掃除機をかける(一部屋)', points: 10, icon: '🧹' },
+  { id: 't9',  name: '掃除機をかける(家全体)', points: 20, icon: '🧹' },
+  { id: 't10', name: '部屋の片付け',           points: 10, icon: '🧹' },
 ];
 const DEFAULT_REWARDS = [
   { id: 'r1', name: 'ゲーム 15分', cost: 15, minutes: 15, icon: '🎮' },
@@ -682,14 +685,28 @@ function renderParent(member) {
       wrap.append(row);
     });
     wrap.append(el('button', { style: { ...S.btn, fontSize: '13px', marginBottom: '1.5rem' }, onClick: () => {
-      showModal('タスク名', 'タスク名を入力', (name) => {
-        if (!name) return;
-        showModal('ポイント数', '例: 20', (v) => {
-          const pts = parseInt(v); if (isNaN(pts)) return;
+      const ov = el('div', { style: { position: 'fixed', top: '0', left: '0', right: '0', bottom: '0', background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: '999', padding: '16px' } });
+      const md = el('div', { style: { background: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', width: '300px', maxWidth: '100%' } });
+      md.append(el('p', { style: { fontWeight: '600', margin: '0 0 12px', fontSize: '15px' } }, '+ タスクを追加'));
+      const nameInp = el('input', { placeholder: 'タスク名', style: { width: '100%', marginBottom: '8px' } });
+      const ptsInp = el('input', { placeholder: 'ポイント数（例: 20）', type: 'number', min: '1', style: { width: '100%', marginBottom: '16px' } });
+      md.append(nameInp, ptsInp);
+      const btns = el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } });
+      btns.append(
+        el('button', { style: S.btn, onClick: () => ov.remove() }, 'キャンセル'),
+        el('button', { style: S.btnPrimary, onClick: () => {
+          const name = nameInp.value.trim();
+          const pts = parseInt(ptsInp.value);
+          if (!name || isNaN(pts) || pts < 1) return;
           state.tasks.push({ id: 't' + Date.now(), name, points: pts, icon: '⭐' });
-          saveState(); render();
-        });
-      });
+          saveState(); ov.remove(); render();
+        }}, 'OK')
+      );
+      md.append(btns);
+      ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+      ov.append(md);
+      document.body.append(ov);
+      setTimeout(() => nameInp.focus(), 50);
     }}, '+ タスクを追加'));
 
     wrap.append(el('p', { style: S.subheading }, 'ごほうび一覧'));
@@ -702,17 +719,30 @@ function renderParent(member) {
       wrap.append(row);
     });
     wrap.append(el('button', { style: { ...S.btn, fontSize: '13px', marginBottom: '1.5rem' }, onClick: () => {
-      showModal('ごほうび名', 'ごほうび名を入力', (name) => {
-        if (!name) return;
-        showModal('必要ポイント数', '例: 30', (v1) => {
-          const cost = parseInt(v1); if (isNaN(cost)) return;
-          showModal('時間（分）', '例: 30', (v2) => {
-            const mins = parseInt(v2); if (isNaN(mins)) return;
-            state.rewards.push({ id: 'r' + Date.now(), name, cost, minutes: mins, icon: '🎁' });
-            saveState(); render();
-          });
-        });
-      });
+      const ov = el('div', { style: { position: 'fixed', top: '0', left: '0', right: '0', bottom: '0', background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: '999', padding: '16px' } });
+      const md = el('div', { style: { background: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', width: '300px', maxWidth: '100%' } });
+      md.append(el('p', { style: { fontWeight: '600', margin: '0 0 12px', fontSize: '15px' } }, '+ ごほうびを追加'));
+      const nameInp = el('input', { placeholder: 'ごほうび名', style: { width: '100%', marginBottom: '8px' } });
+      const costInp = el('input', { placeholder: '消費ポイント（例: 30）', type: 'number', min: '1', style: { width: '100%', marginBottom: '8px' } });
+      const minsInp = el('input', { placeholder: 'タイマー時間・分（例: 30）', type: 'number', min: '1', style: { width: '100%', marginBottom: '16px' } });
+      md.append(nameInp, costInp, minsInp);
+      const btns = el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } });
+      btns.append(
+        el('button', { style: S.btn, onClick: () => ov.remove() }, 'キャンセル'),
+        el('button', { style: S.btnPrimary, onClick: () => {
+          const name = nameInp.value.trim();
+          const cost = parseInt(costInp.value);
+          const mins = parseInt(minsInp.value);
+          if (!name || isNaN(cost) || cost < 1 || isNaN(mins) || mins < 1) return;
+          state.rewards.push({ id: 'r' + Date.now(), name, cost, minutes: mins, icon: '🎁' });
+          saveState(); ov.remove(); render();
+        }}, 'OK')
+      );
+      md.append(btns);
+      ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+      ov.append(md);
+      document.body.append(ov);
+      setTimeout(() => nameInp.focus(), 50);
     }}, '+ ごほうびを追加'));
 
     wrap.append(el('p', { style: S.subheading }, 'PIN変更'));
