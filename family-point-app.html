@@ -92,16 +92,13 @@ const app = document.getElementById('app');
 const STORAGE_KEY = 'family-point-app';
 
 const DEFAULT_TASKS = [
-  { id: 't1',  name: '宿題を終わらせた',       points: 15, icon: '📖' },
-  { id: 't2',  name: '宿題を早く終わらせた',   points: 20, icon: '📖' },
-  { id: 't3',  name: 'ピアノの練習をした',     points: 15, icon: '🎹' },
-  { id: 't4',  name: 'お風呂掃除(かるく)',     points: 10, icon: '🛁' },
-  { id: 't5',  name: 'お風呂掃除(しっかり)',   points: 20, icon: '🛁' },
-  { id: 't6',  name: '食器洗い(すこし)',       points: 10, icon: '🍽' },
-  { id: 't7',  name: '食器洗い(しっかり)',     points: 20, icon: '🍽' },
-  { id: 't8',  name: '掃除機をかける(一部屋)', points: 10, icon: '🧹' },
-  { id: 't9',  name: '掃除機をかける(家全体)', points: 20, icon: '🧹' },
-  { id: 't10', name: '部屋の片付け',           points: 10, icon: '🧹' },
+  { id: 't1', name: '宿題を終わらせた',     points: 15, icon: '📖' },
+  { id: 't2', name: '宿題を早く終わらせた', points: 20, icon: '📖' },
+  { id: 't3', name: 'ピアノの練習',         points: 15, icon: '🎹' },
+  { id: 't4', name: 'お風呂掃除',           points: 10, icon: '🛁' },
+  { id: 't5', name: '食器洗い',             points: 10, icon: '🍽' },
+  { id: 't6', name: '掃除機をかける',       points: 10, icon: '🧹' },
+  { id: 't7', name: '部屋の片付け',         points: 10, icon: '🧹' },
 ];
 const DEFAULT_REWARDS = [
   { id: 'r1', name: 'ゲーム 15分', cost: 15, minutes: 15, icon: '🎮' },
