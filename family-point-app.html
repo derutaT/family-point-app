@@ -65,7 +65,7 @@
     -webkit-tap-highlight-color: transparent;
   }
   #app {
-    max-width: 480px;
+    max-width: 720px;
     margin: 0 auto;
     padding: 16px;
     min-height: 100dvh;
@@ -122,6 +122,7 @@ function defaultState() {
 let state = defaultState();
 let currentUser = null;
 let currentTab = 'home';
+let currentSubPage = null;
 let timerInterval = null;
 let pinTarget = null;
 let audioCtx = null;
@@ -425,110 +426,177 @@ function renderChild(member) {
   const tabs = el('div', { style: S.tabBar });
   ['つかう', 'ためる', 'タイマー'].forEach((t, i) => {
     const keys = ['redeem', 'request', 'timer'];
-    tabs.append(el('button', { style: S.tab(currentTab === keys[i]), onClick: () => { currentTab = keys[i]; render(); } }, t));
+    tabs.append(el('button', { style: S.tab(currentTab === keys[i]), onClick: () => { currentTab = keys[i]; currentSubPage = null; render(); } }, t));
   });
   wrap.append(tabs);
 
   if (currentTab === 'redeem' || currentTab === 'home') {
     currentTab = 'redeem';
-    wrap.append(el('p', { style: S.subheading }, 'ポイントをつかう'));
-    wrap.append(el('p', { style: { ...S.muted, marginBottom: '12px' } }, '今日のポイントから先に消費されます'));
-    state.rewards.forEach(r => {
-      const can = totalPoints(member) >= r.cost;
-      const row = el('div', { style: { ...S.card, ...S.row, justifyContent: 'space-between', padding: '12px 1rem', opacity: can ? '1' : '0.5' } });
-      row.append(
-        el('div', { style: S.row }, el('span', { style: { fontSize: '20px' } }, r.icon), el('div', null, el('p', { style: { margin: '0', fontSize: '14px', fontWeight: '600' } }, r.name), el('p', { style: { ...S.muted, fontSize: '12px' } }, r.cost + 'pt 必要'))),
-        el('button', { style: { ...S.btnPrimary, fontSize: '13px', padding: '6px 14px', opacity: can ? '1' : '0.5' }, onClick: () => {
-          if (!can) return;
-          const { usedDaily, usedTask } = spendPoints(member, r.cost);
-          state.history.push({ type: 'redeem', childId: member.id, childName: member.name, rewardName: r.name, cost: r.cost, usedDaily, usedTask, minutes: r.minutes, date: new Date().toISOString() });
-          state.timerEnd = Date.now() + r.minutes * 60000;
-          state.timerLabel = r.name;
-          currentTab = 'timer';
-          saveState(); render();
-        }}, 'つかう')
-      );
-      wrap.append(row);
-    });
-  }
-
-  if (currentTab === 'request') {
-    // ── かんたんタスク（承認不要・1日1回）──
-    const autoTasks = state.tasks.filter(t => t.autoApprove);
-    if (autoTasks.length) {
-      wrap.append(el('p', { style: S.subheading }, 'かんたんタスク（1日1回）'));
-      autoTasks.forEach(t => {
-        const today = getAppDay();
-        const done = (member.completedToday || {})[t.id] === today;
-        const row = el('div', { style: { ...S.card, ...S.row, justifyContent: 'space-between', padding: '10px 1rem', opacity: done ? '0.55' : '1' } });
+    if (currentSubPage === 'redeem-history') {
+      renderRedeemHistory(wrap, member);
+    } else {
+      wrap.append(el('p', { style: S.subheading }, 'ポイントをつかう'));
+      wrap.append(el('p', { style: { ...S.muted, marginBottom: '12px' } }, '今日のポイントから先に消費されます'));
+      state.rewards.forEach(r => {
+        const can = totalPoints(member) >= r.cost;
+        const row = el('div', { style: { ...S.card, ...S.row, justifyContent: 'space-between', padding: '12px 1rem', opacity: can ? '1' : '0.5' } });
         row.append(
-          el('div', { style: S.row },
-            el('span', { style: { fontSize: '20px' } }, t.icon),
-            el('div', null,
-              el('p', { style: { margin: '0', fontSize: '14px', fontWeight: '600' } }, t.name),
-              el('p', { style: { ...S.muted, fontSize: '12px' } }, done ? '今日は済み' : '+' + t.points + 'pt')
-            )
-          ),
-          done
-            ? el('span', { style: { ...S.badge, background: 'var(--green-light)', color: 'var(--green-dark)', padding: '5px 12px' } }, '済み ✓')
-            : el('button', { style: { ...S.btnSuccess, fontSize: '13px' }, onClick: () => {
-                if (!member.completedToday) member.completedToday = {};
-                member.completedToday[t.id] = today;
-                member.points += t.points;
-                state.history.push({ type: 'auto', taskId: t.id, taskName: t.name, taskIcon: t.icon, points: t.points, childId: member.id, childName: member.name, date: new Date().toISOString() });
-                saveState(); render();
-              }}, 'やった！')
+          el('div', { style: S.row }, el('span', { style: { fontSize: '20px' } }, r.icon), el('div', null, el('p', { style: { margin: '0', fontSize: '14px', fontWeight: '600' } }, r.name), el('p', { style: { ...S.muted, fontSize: '12px' } }, r.cost + 'pt 必要'))),
+          el('button', { style: { ...S.btnPrimary, fontSize: '13px', padding: '6px 14px', opacity: can ? '1' : '0.5' }, onClick: () => {
+            if (!can) return;
+            const { usedDaily, usedTask } = spendPoints(member, r.cost);
+            state.history.push({ type: 'redeem', childId: member.id, childName: member.name, rewardName: r.name, cost: r.cost, usedDaily, usedTask, minutes: r.minutes, date: new Date().toISOString() });
+            state.timerEnd = Date.now() + r.minutes * 60000;
+            state.timerLabel = r.name;
+            currentTab = 'timer';
+            saveState(); render();
+          }}, 'つかう')
         );
         wrap.append(row);
       });
+      wrap.append(el('button', { style: { ...S.btn, width: '100%', fontSize: '13px', marginTop: '4px' }, onClick: () => { currentSubPage = 'redeem-history'; render(); } }, '使った記録を見る →'));
     }
+  }
 
-    // ── 通常タスク（親の承認が必要）──
-    const regularTasks = state.tasks.filter(t => !t.autoApprove);
-    const cols = el('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', alignItems: 'start' } });
-
-    const leftCol = el('div');
-    leftCol.append(el('p', { style: S.subheading }, 'タスク申請'));
-    regularTasks.forEach(t => {
-      const card = el('div', { style: { ...S.card, cursor: 'pointer', padding: '10px', marginBottom: '6px' }, onClick: () => {
-        state.requests.push({ id: 'req' + Date.now(), taskId: t.id, taskName: t.name, taskIcon: t.icon, points: t.points, childId: member.id, childName: member.name, date: new Date().toISOString(), status: 'pending' });
-        saveState(); render();
-      }});
-      card.append(
-        el('div', { style: { ...S.row, marginBottom: '4px' } }, el('span', { style: { fontSize: '18px' } }, t.icon), el('span', { style: { fontSize: '12px', flex: '1', lineHeight: '1.3' } }, t.name)),
-        el('span', { style: { ...S.badge, background: 'var(--accent-light)', color: 'var(--accent-dark)' } }, '+' + t.points + 'pt')
-      );
-      leftCol.append(card);
-    });
-
-    const pending = state.requests.filter(r => r.childId === member.id && r.status === 'pending');
-    const rightCol = el('div');
-    rightCol.append(el('p', { style: S.subheading }, '申請中'));
-    if (!pending.length) {
-      rightCol.append(el('p', { style: { ...S.muted, fontSize: '12px' } }, 'まだありません'));
+  if (currentTab === 'request') {
+    if (currentSubPage === 'earn-history') {
+      renderEarnHistory(wrap, member);
     } else {
-      pending.forEach(r => {
+      // ── かんたんタスク（承認不要・1日1回）──
+      const autoTasks = state.tasks.filter(t => t.autoApprove);
+      if (autoTasks.length) {
+        wrap.append(el('p', { style: S.subheading }, 'かんたんタスク（1日1回）'));
+        autoTasks.forEach(t => {
+          const today = getAppDay();
+          const done = (member.completedToday || {})[t.id] === today;
+          const row = el('div', { style: { ...S.card, ...S.row, justifyContent: 'space-between', padding: '10px 1rem', opacity: done ? '0.55' : '1' } });
+          row.append(
+            el('div', { style: S.row },
+              el('span', { style: { fontSize: '20px' } }, t.icon),
+              el('div', null,
+                el('p', { style: { margin: '0', fontSize: '14px', fontWeight: '600' } }, t.name),
+                el('p', { style: { ...S.muted, fontSize: '12px' } }, done ? '今日は済み' : '+' + t.points + 'pt')
+              )
+            ),
+            done
+              ? el('span', { style: { ...S.badge, background: 'var(--green-light)', color: 'var(--green-dark)', padding: '5px 12px' } }, '済み ✓')
+              : el('button', { style: { ...S.btnSuccess, fontSize: '13px' }, onClick: () => {
+                  if (!member.completedToday) member.completedToday = {};
+                  member.completedToday[t.id] = today;
+                  member.points += t.points;
+                  state.history.push({ type: 'auto', taskId: t.id, taskName: t.name, taskIcon: t.icon, points: t.points, childId: member.id, childName: member.name, date: new Date().toISOString() });
+                  saveState(); render();
+                }}, 'やった！')
+          );
+          wrap.append(row);
+        });
+      }
+
+      // ── 通常タスク（親の承認が必要）──
+      const regularTasks = state.tasks.filter(t => !t.autoApprove);
+      const cols = el('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', alignItems: 'start' } });
+
+      const leftCol = el('div');
+      leftCol.append(el('p', { style: S.subheading }, 'タスク申請'));
+      regularTasks.forEach(t => {
         const card = el('div', { style: { ...S.card, cursor: 'pointer', padding: '10px', marginBottom: '6px' }, onClick: () => {
-          showModal('「' + r.taskName + '」の申請を取り消しますか？', null, () => {
-            state.requests = state.requests.filter(req => req.id !== r.id);
-            saveState(); render();
-          });
+          state.requests.push({ id: 'req' + Date.now(), taskId: t.id, taskName: t.name, taskIcon: t.icon, points: t.points, childId: member.id, childName: member.name, date: new Date().toISOString(), status: 'pending' });
+          saveState(); render();
         }});
         card.append(
-          el('div', { style: { ...S.row, marginBottom: '4px' } }, el('span', { style: { fontSize: '18px' } }, r.taskIcon || state.tasks.find(t => t.id === r.taskId)?.icon || '⭐'), el('span', { style: { fontSize: '12px', flex: '1', lineHeight: '1.3' } }, r.taskName)),
-          el('p', { style: { ...S.muted, fontSize: '11px', margin: '0 0 4px' } }, new Date(r.date).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })),
-          el('span', { style: { ...S.badge, background: 'var(--amber-light)', color: 'var(--amber-dark)' } }, '承認待ち')
+          el('div', { style: { ...S.row, marginBottom: '4px' } }, el('span', { style: { fontSize: '18px' } }, t.icon), el('span', { style: { fontSize: '12px', flex: '1', lineHeight: '1.3' } }, t.name)),
+          el('span', { style: { ...S.badge, background: 'var(--accent-light)', color: 'var(--accent-dark)' } }, '+' + t.points + 'pt')
         );
-        rightCol.append(card);
+        leftCol.append(card);
       });
-    }
 
-    cols.append(leftCol, rightCol);
-    wrap.append(cols);
+      const pending = state.requests.filter(r => r.childId === member.id && r.status === 'pending');
+      const rightCol = el('div');
+      rightCol.append(el('p', { style: S.subheading }, '申請中'));
+      if (!pending.length) {
+        rightCol.append(el('p', { style: { ...S.muted, fontSize: '12px' } }, 'まだありません'));
+      } else {
+        pending.forEach(r => {
+          const card = el('div', { style: { ...S.card, cursor: 'pointer', padding: '10px', marginBottom: '6px' }, onClick: () => {
+            showModal('「' + r.taskName + '」の申請を取り消しますか？', null, () => {
+              state.requests = state.requests.filter(req => req.id !== r.id);
+              saveState(); render();
+            });
+          }});
+          card.append(
+            el('div', { style: { ...S.row, marginBottom: '4px' } }, el('span', { style: { fontSize: '18px' } }, r.taskIcon || state.tasks.find(t => t.id === r.taskId)?.icon || '⭐'), el('span', { style: { fontSize: '12px', flex: '1', lineHeight: '1.3' } }, r.taskName)),
+            el('p', { style: { ...S.muted, fontSize: '11px', margin: '0 0 4px' } }, new Date(r.date).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })),
+            el('span', { style: { ...S.badge, background: 'var(--amber-light)', color: 'var(--amber-dark)' } }, '承認待ち')
+          );
+          rightCol.append(card);
+        });
+      }
+
+      cols.append(leftCol, rightCol);
+      wrap.append(cols);
+      wrap.append(el('button', { style: { ...S.btn, width: '100%', fontSize: '13px', marginTop: '4px' }, onClick: () => { currentSubPage = 'earn-history'; render(); } }, 'ためた記録を見る →'));
+    }
   }
 
   if (currentTab === 'timer') renderTimer(wrap);
   app.append(wrap);
+}
+
+/* ── Redeem History (child) ── */
+function renderRedeemHistory(wrap, member) {
+  wrap.append(el('button', { style: { ...S.btn, fontSize: '13px', marginBottom: '1rem' }, onClick: () => { currentSubPage = null; render(); } }, '← つかうに戻る'));
+  wrap.append(el('p', { style: S.subheading }, '使った記録'));
+  const hist = state.history.filter(h => h.type === 'redeem' && h.childId === member.id).reverse().slice(0, 50);
+  if (!hist.length) {
+    wrap.append(el('div', { style: { ...S.card, textAlign: 'center', padding: '1.5rem' } }, el('p', { style: S.muted }, 'まだ記録がありません')));
+    return;
+  }
+  hist.forEach(h => {
+    const card = el('div', { style: { ...S.card, padding: '10px 1rem' } });
+    card.append(el('div', { style: { ...S.row, justifyContent: 'space-between' } },
+      el('div', { style: S.row },
+        el('span', { style: { fontSize: '20px' } }, state.rewards.find(r => r.name === h.rewardName)?.icon || '🎁'),
+        el('div', null,
+          el('p', { style: { margin: '0', fontSize: '14px', fontWeight: '600' } }, h.rewardName),
+          el('p', { style: { ...S.muted, fontSize: '11px' } }, new Date(h.date).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }))
+        )
+      ),
+      el('div', { style: { textAlign: 'right' } },
+        el('span', { style: { ...S.badge, background: 'var(--amber-light)', color: 'var(--amber-dark)' } }, h.cost + 'pt'),
+        el('p', { style: { ...S.muted, fontSize: '11px', marginTop: '3px' } }, '日替' + (h.usedDaily || 0) + ' / タスク' + (h.usedTask || 0))
+      )
+    ));
+    wrap.append(card);
+  });
+}
+
+/* ── Earn History (child) ── */
+function renderEarnHistory(wrap, member) {
+  wrap.append(el('button', { style: { ...S.btn, fontSize: '13px', marginBottom: '1rem' }, onClick: () => { currentSubPage = null; render(); } }, '← ためるに戻る'));
+  wrap.append(el('p', { style: S.subheading }, 'ためた記録'));
+  const hist = state.history.filter(h => (h.type === 'approve' || h.type === 'auto') && h.childId === member.id).reverse().slice(0, 50);
+  if (!hist.length) {
+    wrap.append(el('div', { style: { ...S.card, textAlign: 'center', padding: '1.5rem' } }, el('p', { style: S.muted }, 'まだ記録がありません')));
+    return;
+  }
+  hist.forEach(h => {
+    const isAuto = h.type === 'auto';
+    const card = el('div', { style: { ...S.card, padding: '10px 1rem' } });
+    card.append(el('div', { style: { ...S.row, justifyContent: 'space-between' } },
+      el('div', { style: S.row },
+        el('span', { style: { fontSize: '20px' } }, h.taskIcon || '⭐'),
+        el('div', null,
+          el('p', { style: { margin: '0', fontSize: '14px', fontWeight: '600' } }, h.taskName),
+          el('p', { style: { ...S.muted, fontSize: '11px' } }, new Date(h.date).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }))
+        )
+      ),
+      el('div', { style: { textAlign: 'right' } },
+        el('span', { style: { ...S.badge, background: 'var(--green-light)', color: 'var(--green-dark)' } }, '+' + h.points + 'pt'),
+        el('p', { style: { ...S.muted, fontSize: '11px', marginTop: '3px' } }, isAuto ? 'かんたんタスク' : ('承認: ' + (h.approvedBy || '')))
+      )
+    ));
+    wrap.append(card);
+  });
 }
 
 /* ── Timer ── */
@@ -603,9 +671,9 @@ function renderParent(member) {
   wrap.append(header);
 
   const tabs = el('div', { style: S.tabBar });
-  ['承認', 'ポイント', '履歴', '設定'].forEach((t, i) => {
-    const keys = ['approve', 'points', 'history', 'settings'];
-    tabs.append(el('button', { style: S.tab(currentTab === keys[i]), onClick: () => { currentTab = keys[i]; render(); } }, t));
+  ['承認', 'ポイント残高', 'つかった履歴', 'ためた履歴', '設定'].forEach((t, i) => {
+    const keys = ['approve', 'points', 'spent', 'earned', 'settings'];
+    tabs.append(el('button', { style: S.tab(currentTab === keys[i]), onClick: () => { currentTab = keys[i]; currentSubPage = null; render(); } }, t));
   });
   wrap.append(tabs);
 
@@ -670,27 +738,56 @@ function renderParent(member) {
     });
   }
 
-  if (currentTab === 'history') {
-    wrap.append(el('p', { style: S.subheading }, '最近の履歴'));
-    const hist = [...state.history].reverse().slice(0, 30);
-    if (!hist.length) wrap.append(el('div', { style: { ...S.card, textAlign: 'center', padding: '1.5rem' } }, el('p', { style: S.muted }, 'まだ履歴がありません')));
+  if (currentTab === 'spent') {
+    wrap.append(el('p', { style: S.subheading }, 'つかった履歴'));
+    const hist = [...state.history].filter(h => h.type === 'redeem').reverse().slice(0, 50);
+    if (!hist.length) {
+      wrap.append(el('div', { style: { ...S.card, textAlign: 'center', padding: '1.5rem' } }, el('p', { style: S.muted }, 'まだ記録がありません')));
+    }
     hist.forEach(h => {
       const card = el('div', { style: { ...S.card, padding: '10px 1rem' } });
+      card.append(el('div', { style: { ...S.row, justifyContent: 'space-between' } },
+        el('div', { style: S.row },
+          el('span', { style: { fontSize: '20px' } }, state.rewards.find(r => r.name === h.rewardName)?.icon || '🎁'),
+          el('div', null,
+            el('p', { style: { margin: '0', fontSize: '13px', fontWeight: '600' } }, h.rewardName),
+            el('p', { style: { ...S.muted, fontSize: '11px' } }, h.childName + ' · ' + new Date(h.date).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }))
+          )
+        ),
+        el('div', { style: { textAlign: 'right' } },
+          el('span', { style: { ...S.badge, background: 'var(--amber-light)', color: 'var(--amber-dark)' } }, h.cost + 'pt'),
+          el('p', { style: { ...S.muted, fontSize: '11px', marginTop: '3px' } }, '日替' + (h.usedDaily || 0) + ' / タスク' + (h.usedTask || 0))
+        )
+      ));
+      wrap.append(card);
+    });
+  }
+
+  if (currentTab === 'earned') {
+    wrap.append(el('p', { style: S.subheading }, 'ためた履歴'));
+    const hist = [...state.history].filter(h => h.type === 'approve' || h.type === 'auto' || h.type === 'manual').reverse().slice(0, 50);
+    if (!hist.length) {
+      wrap.append(el('div', { style: { ...S.card, textAlign: 'center', padding: '1.5rem' } }, el('p', { style: S.muted }, 'まだ記録がありません')));
+    }
+    hist.forEach(h => {
       let label, bg, color;
       if (h.type === 'approve') { label = '承認'; bg = 'var(--green-light)'; color = 'var(--green-dark)'; }
-      else if (h.type === 'reject') { label = '却下'; bg = 'var(--red-light)'; color = 'var(--red-dark)'; }
-      else if (h.type === 'redeem') { label = '使用'; bg = 'var(--amber-light)'; color = 'var(--amber-dark)'; }
       else if (h.type === 'auto') { label = '即時'; bg = 'var(--blue-light)'; color = 'var(--blue-dark)'; }
       else { label = '手動'; bg = 'var(--blue-light)'; color = 'var(--blue-dark)'; }
-
-      let detail = h.taskName || h.rewardName || ((h.points > 0 ? '+' : '') + h.points + 'pt');
-      if (h.type === 'redeem' && h.usedDaily !== undefined) {
-        detail += '（日替' + h.usedDaily + ' / タスク' + h.usedTask + '）';
-      }
-
+      const ptText = h.type === 'manual' ? ((h.points > 0 ? '+' : '') + h.points + 'pt') : ('+' + h.points + 'pt');
+      const card = el('div', { style: { ...S.card, padding: '10px 1rem' } });
       card.append(el('div', { style: { ...S.row, justifyContent: 'space-between' } },
-        el('div', null, el('p', { style: { margin: '0', fontSize: '13px', fontWeight: '600' } }, detail), el('p', { style: { ...S.muted, fontSize: '11px' } }, (h.childName || '') + ' · ' + new Date(h.date).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }))),
-        el('span', { style: { ...S.badge, background: bg, color } }, label)
+        el('div', { style: S.row },
+          el('span', { style: { fontSize: '20px' } }, h.taskIcon || '⭐'),
+          el('div', null,
+            el('p', { style: { margin: '0', fontSize: '13px', fontWeight: '600' } }, h.taskName || (h.points > 0 ? '手動追加' : '手動減算')),
+            el('p', { style: { ...S.muted, fontSize: '11px' } }, h.childName + ' · ' + new Date(h.date).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }))
+          )
+        ),
+        el('div', { style: { textAlign: 'right' } },
+          el('span', { style: { ...S.badge, background: bg, color } }, label),
+          el('p', { style: { ...S.muted, fontSize: '11px', marginTop: '3px' } }, ptText)
+        )
       ));
       wrap.append(card);
     });
