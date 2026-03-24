@@ -116,7 +116,7 @@ const DEFAULT_REWARDS = [
 ];
 
 function defaultState() {
-  return { setup: false, members: [], tasks: DEFAULT_TASKS, rewards: DEFAULT_REWARDS, requests: [], history: [], timerEnd: null, timerLabel: '', dailyAmount: 60 };
+  return { setup: false, members: [], tasks: DEFAULT_TASKS, rewards: DEFAULT_REWARDS, requests: [], history: [], timers: {}, dailyAmount: 60 };
 }
 
 let state = defaultState();
@@ -197,6 +197,9 @@ function playTick() {
 function loadState() {
   try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) state = JSON.parse(raw); } catch(e) {}
   if (!state.dailyAmount) state.dailyAmount = 60;
+  if (!state.timers) state.timers = {};
+  // 旧フォーマットのマイグレーション
+  if (state.timerEnd !== undefined) { delete state.timerEnd; delete state.timerLabel; }
 }
 function saveState() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
@@ -446,8 +449,7 @@ function renderChild(member) {
             if (!can) return;
             const { usedDaily, usedTask } = spendPoints(member, r.cost);
             state.history.push({ type: 'redeem', childId: member.id, childName: member.name, rewardName: r.name, cost: r.cost, usedDaily, usedTask, minutes: r.minutes, date: new Date().toISOString() });
-            state.timerEnd = Date.now() + r.minutes * 60000;
-            state.timerLabel = r.name;
+            state.timers[member.id] = { timerEnd: Date.now() + r.minutes * 60000, timerLabel: r.name, totalDur: r.minutes * 60000 };
             currentTab = 'timer';
             saveState(); render();
           }}, 'つかう')
@@ -602,62 +604,100 @@ function renderEarnHistory(wrap, member) {
 /* ── Timer ── */
 function renderTimer(wrap) {
   wrap.append(el('p', { style: { ...S.subheading, textAlign: 'center' } }, 'タイマー'));
-  if (!state.timerEnd || Date.now() > state.timerEnd) {
-    const card = el('div', { style: { ...S.card, textAlign: 'center', padding: '2rem' } });
-    if (state.timerEnd && Date.now() > state.timerEnd) {
-      playAlarm();
-      card.append(el('p', { style: { fontSize: '40px', margin: '0 0 8px' } }, '⏰'), el('p', { style: { fontWeight: '600', fontSize: '16px', margin: '0 0 4px', color: 'var(--red-btn)' } }, '時間終了！'), el('p', { style: S.muted }, state.timerLabel || ''));
-      card.append(el('button', { style: { ...S.btn, marginTop: '12px' }, onClick: () => { state.timerEnd = null; state.timerLabel = ''; saveState(); render(); } }, 'OK'));
-    } else {
-      card.append(el('p', { style: { fontSize: '40px', margin: '0 0 8px' } }, '⏳'), el('p', { style: S.muted }, 'ポイントを使うとタイマーが始まります'));
-    }
+
+  const children = state.members.filter(m => m.role === 'child');
+  const now = Date.now();
+
+  // 終了済みタイマーの検出（アラーム表示用）
+  const expired = children.filter(c => state.timers[c.id] && now > state.timers[c.id].timerEnd);
+  expired.forEach(c => {
+    playAlarm();
+    const card = el('div', { style: { ...S.card, textAlign: 'center', padding: '1.5rem', marginBottom: '12px', border: '1.5px solid var(--red-btn)' } });
+    card.append(
+      el('div', { style: { ...S.row, justifyContent: 'center', gap: '8px', marginBottom: '8px' } },
+        el('div', { style: S.iconCircle('var(--green-light)') }, c.icon || '👧'),
+        el('span', { style: { fontWeight: '600' } }, c.name)
+      ),
+      el('p', { style: { fontSize: '32px', margin: '0 0 4px' } }, '⏰'),
+      el('p', { style: { fontWeight: '600', fontSize: '15px', margin: '0 0 4px', color: 'var(--red-btn)' } }, '時間終了！'),
+      el('p', { style: { ...S.muted, marginBottom: '12px' } }, state.timers[c.id].timerLabel),
+      el('button', { style: S.btn, onClick: () => { delete state.timers[c.id]; saveState(); render(); } }, 'OK')
+    );
     wrap.append(card);
+  });
+
+  // 稼働中タイマー
+  const active = children.filter(c => state.timers[c.id] && now <= state.timers[c.id].timerEnd);
+
+  if (!active.length && !expired.length) {
+    wrap.append(el('div', { style: { ...S.card, textAlign: 'center', padding: '2rem' } },
+      el('p', { style: { fontSize: '40px', margin: '0 0 8px' } }, '⏳'),
+      el('p', { style: S.muted }, 'ポイントを使うとタイマーが始まります')
+    ));
     return;
   }
 
-  const remaining = Math.max(0, state.timerEnd - Date.now());
-  const mins = Math.floor(remaining / 60000);
-  const secs = Math.floor((remaining % 60000) / 1000);
-  const lastH = state.history.filter(h => h.type === 'redeem').pop();
-  const totalDur = lastH ? lastH.minutes * 60000 : 1800000;
-  const pct = Math.min(100, ((totalDur - remaining) / totalDur) * 100);
-
-  const card = el('div', { style: { ...S.card, textAlign: 'center', padding: '1.5rem' } });
-  card.append(el('p', { style: { ...S.muted, marginBottom: '8px' } }, state.timerLabel));
-
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('width', '160'); svg.setAttribute('height', '160'); svg.setAttribute('viewBox', '0 0 160 160');
-  svg.style.margin = '0 auto 12px'; svg.style.display = 'block';
+  // 各タイマーのDOM参照をまとめて管理
+  const timerRefs = [];
   const rad = 68, circ = 2 * Math.PI * rad;
-  const bgC = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-  bgC.setAttribute('cx','80'); bgC.setAttribute('cy','80'); bgC.setAttribute('r',String(rad));
-  bgC.setAttribute('fill','none'); bgC.setAttribute('stroke','var(--border-light)'); bgC.setAttribute('stroke-width','8');
-  const fgC = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-  fgC.setAttribute('cx','80'); fgC.setAttribute('cy','80'); fgC.setAttribute('r',String(rad));
-  fgC.setAttribute('fill','none'); fgC.setAttribute('stroke','var(--accent)'); fgC.setAttribute('stroke-width','8');
-  fgC.setAttribute('stroke-linecap','round'); fgC.setAttribute('stroke-dasharray',String(circ));
-  fgC.setAttribute('stroke-dashoffset',String(circ*(1-pct/100))); fgC.setAttribute('transform','rotate(-90 80 80)');
-  const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-  txt.setAttribute('x','80'); txt.setAttribute('y','86'); txt.setAttribute('text-anchor','middle');
-  txt.setAttribute('font-size','28'); txt.setAttribute('font-weight','600'); txt.setAttribute('fill','var(--text-primary)');
-  txt.textContent = String(mins).padStart(2,'0') + ':' + String(secs).padStart(2,'0');
-  svg.append(bgC, fgC, txt);
-  card.append(svg);
-  card.append(el('p', { style: { ...S.muted, fontSize: '12px' } }, '残り時間'));
 
-  let warnPlayed = false;
+  active.forEach(c => {
+    const t = state.timers[c.id];
+    const rem0 = Math.max(0, t.timerEnd - now);
+    const totalDur = t.totalDur || rem0 || 1800000;
+    const pct0 = Math.min(100, ((totalDur - rem0) / totalDur) * 100);
+    const m0 = Math.floor(rem0 / 60000), s0 = Math.floor((rem0 % 60000) / 1000);
+
+    const card = el('div', { style: { ...S.card, textAlign: 'center', padding: '1.5rem', marginBottom: '12px' } });
+    card.append(
+      el('div', { style: { ...S.row, justifyContent: 'center', gap: '8px', marginBottom: '8px' } },
+        el('div', { style: S.iconCircle('var(--green-light)') }, c.icon || '👧'),
+        el('span', { style: { fontWeight: '600' } }, c.name)
+      ),
+      el('p', { style: { ...S.muted, marginBottom: '8px' } }, t.timerLabel)
+    );
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', '140'); svg.setAttribute('height', '140'); svg.setAttribute('viewBox', '0 0 160 160');
+    svg.style.margin = '0 auto 8px'; svg.style.display = 'block';
+    const bgC = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    bgC.setAttribute('cx','80'); bgC.setAttribute('cy','80'); bgC.setAttribute('r',String(rad));
+    bgC.setAttribute('fill','none'); bgC.setAttribute('stroke','var(--border-light)'); bgC.setAttribute('stroke-width','8');
+    const fgC = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    fgC.setAttribute('cx','80'); fgC.setAttribute('cy','80'); fgC.setAttribute('r',String(rad));
+    fgC.setAttribute('fill','none'); fgC.setAttribute('stroke','var(--accent)'); fgC.setAttribute('stroke-width','8');
+    fgC.setAttribute('stroke-linecap','round'); fgC.setAttribute('stroke-dasharray',String(circ));
+    fgC.setAttribute('stroke-dashoffset',String(circ*(1-pct0/100))); fgC.setAttribute('transform','rotate(-90 80 80)');
+    const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    txt.setAttribute('x','80'); txt.setAttribute('y','86'); txt.setAttribute('text-anchor','middle');
+    txt.setAttribute('font-size','28'); txt.setAttribute('font-weight','600'); txt.setAttribute('fill','var(--text-primary)');
+    txt.textContent = String(m0).padStart(2,'0') + ':' + String(s0).padStart(2,'0');
+    svg.append(bgC, fgC, txt);
+    card.append(svg);
+    card.append(el('p', { style: { ...S.muted, fontSize: '12px' } }, '残り時間'));
+    wrap.append(card);
+
+    timerRefs.push({ childId: c.id, fgC, txt, totalDur, warnPlayed: false });
+  });
+
+  // 1つのintervalで全タイマーを更新
   timerInterval = setInterval(() => {
-    const rem = Math.max(0, state.timerEnd - Date.now());
-    const m2 = Math.floor(rem/60000), s2 = Math.floor((rem%60000)/1000);
-    txt.textContent = String(m2).padStart(2,'0')+':'+String(s2).padStart(2,'0');
-    const p2 = Math.min(100,((totalDur-rem)/totalDur)*100);
-    fgC.setAttribute('stroke-dashoffset',String(circ*(1-p2/100)));
-    if (rem <= 60000 && !warnPlayed) { fgC.setAttribute('stroke','var(--red-btn)'); warnPlayed = true; }
-    if (rem <= 10000 && rem > 0 && s2 !== Math.floor(((rem+1000)%60000)/1000)) playTick();
-    if (rem <= 0) { clearInterval(timerInterval); render(); }
+    const n = Date.now();
+    let anyExpired = false;
+    timerRefs.forEach(ref => {
+      const t = state.timers[ref.childId];
+      if (!t) return;
+      const rem = Math.max(0, t.timerEnd - n);
+      const m2 = Math.floor(rem/60000), s2 = Math.floor((rem%60000)/1000);
+      ref.txt.textContent = String(m2).padStart(2,'0')+':'+String(s2).padStart(2,'0');
+      const p2 = Math.min(100,((ref.totalDur-rem)/ref.totalDur)*100);
+      ref.fgC.setAttribute('stroke-dashoffset',String(circ*(1-p2/100)));
+      if (rem <= 60000 && !ref.warnPlayed) { ref.fgC.setAttribute('stroke','var(--red-btn)'); ref.warnPlayed = true; }
+      if (rem <= 10000 && rem > 0 && s2 !== Math.floor(((rem+1000)%60000)/1000)) playTick();
+      if (rem <= 0) anyExpired = true;
+    });
+    if (anyExpired) { clearInterval(timerInterval); render(); }
   }, 250);
-
-  wrap.append(card);
 }
 
 /* ── Parent View ── */
