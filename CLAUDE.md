@@ -41,10 +41,15 @@
 CLAUDE.md # Claude Code エントリーポイント
 TASKS.md # Project の TASK を管理
 docs/
-  spec/ # 現在の仕様（シンプルにまとめる）
-  adr/ # ADR
+  prd/ # なぜ作るか・誰に・何の価値か（プロダクト要求）
+  spec/ # 何を・どう作るか（仕様。テスト可能に端的に）
+  adr/ # なぜその決定か（時点固定・代替案つき）
   task_plan/ # TASK の計画、TASK に着手したタイミングで作成して、進め方を決めて書き出す
 ```
+
+ADR Filename: ${serial_number}-${keyword}.md
+Task Plan Filename: ${ID}-${Keyword}.md
+  ID は紐付く Milestone（M_xxx）または Task（T_xxx）の ID
 
 ## 開発ルール
 - 変更後は必ずブラウザで動作確認する（ビルドステップなし）。
