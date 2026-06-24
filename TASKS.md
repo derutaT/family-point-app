@@ -28,11 +28,11 @@ Document Rule: ./CLAUDE.md h2.ドキュメント構造 を参照
 
 ## Milestone
 
-* M_001 EventLog を Day や Week にまとめて表示する
+* M_001 「ポイントの記録」を Day や Week にまとめて表示する
   - Status: ToDo
   - Blocked: None
   - Keyword: `activity-reconciliation`
-  - EventLog は「遊んだ」や「宿題をした」などの子供の実行ログ
+  - 「ポイントの記録」は「遊んだ」「宿題をした」などの子供の行動の記録
 * M_002 申告と実測を突き合わせ、子供が自分で申告できる
   - Status: ToDo
   - Blocked: None
@@ -44,12 +44,12 @@ Document Rule: ./CLAUDE.md h2.ドキュメント構造 を参照
 
 ## Task
 
-### M_001 EventLog を Day や Week にまとめて表示する
+### M_001 「ポイントの記録」を Day や Week にまとめて表示する
 
-* T_001 Event Log 移行
+* T_001 ポイントの記録への移行（イベントログ化）
   - Status: ToDo
   - Blocked: None
-  - 残高中心 `state` を追記型 `event_log` へ移行。残高は導出（ADR-0003）。全機能の基盤。
+  - 残高中心 `state` を追記型の「ポイントの記録」（イベントログ / event sourcing）へ移行。残高は導出（ADR-0003）。全機能の基盤。
 * T_002 遊びセッション拡張
   - Status: ToDo
   - Blocked: T_001
@@ -59,8 +59,8 @@ Document Rule: ./CLAUDE.md h2.ドキュメント構造 を参照
   - Blocked: T_001, T_002
   - 記録（努力/遊び/外部計測）を種別フィルタで単体表示できる Day/Week 集計 + タイムライン（spec 4.2 振り返りビュー）。比較ビューの基盤も兼ねるが、単体表示だけで価値が出る。
 
-### M_XXX Activity Log の導入と表示
-### M_XXX Event Log と Activity Logを突き合わせて確認する
+### M_XXX 「計測された記録」の導入と表示
+### M_XXX 「ポイントの記録」と「計測された記録」を突き合わせて確認する
 子供が自分で申告できる
 
 * T_004 借金モデル（アプリ化）

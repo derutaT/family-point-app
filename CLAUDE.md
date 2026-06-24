@@ -43,6 +43,7 @@ TASKS.md # Project の TASK を管理
 docs/
   prd/ # なぜ作るか・誰に・何の価値か（プロダクト要求）
   spec/ # 何を・どう作るか（仕様。テスト可能に端的に）
+    overview.md # 横断の用語・データモデル集約（機能固有は spec/${Keyword}.md）
   adr/ # なぜその決定か（時点固定・代替案つき）
   task_plan/ # TASK の計画、TASK に着手したタイミングで作成して、進め方を決めて書き出す
 ```

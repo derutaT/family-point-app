@@ -1,13 +1,11 @@
 # 仕様: 活動突き合わせ機能（活動ビュー & 外部突き合わせ）
 
-> Keyword: `activity-reconciliation`｜関連: 背景/価値 `docs/prd/` / 決定 `docs/adr/` / 計画 `docs/task_plan/` / タスク `TASKS.md`
+> Keyword: `activity-reconciliation`｜関連: 横断定義 `docs/spec/overview.md` / 背景・価値 `docs/prd/` / 決定 `docs/adr/` / 計画 `docs/task_plan/` / タスク `TASKS.md`
 >
-> 本書は「何を・どう作るか」に絞る。なぜ作るか・価値・運用方針は PRD を参照。
+> 本書は本機能**固有**の「何を・どう作るか」に絞る。台帳名・データモデル・Activity スキーマなど横断定義は `overview.md`、なぜ作るか・価値・運用方針は PRD を参照。
 
-## 1. コンセプト: 2台帳モデル
-- **ポイントの記録**（`pointRecord` / = 申告 / ポイント経済）: アプリ経由の遊び・タスク・日替わり付与。「子供が申告した記録」。
-- **計測された記録**（`measuredRecord` / = 実測 / 外部Activity）: iPad ScreenTime と みまもりSwitch のスクショ由来。「実際に使った記録」。
-- 突き合わせは **表示で人（特に子供）が気づく** ことで成立する。アプリ自身は「こっそり遊び」を検知できない（定義上アプリ外）ため、検知をシステムに負わせない（ADR-0001 / ADR-0002）。
+## 1. 概要
+「ポイントの記録（申告）」と「計測された記録（実測）」を **表示で並べ、人（特に子供）が気づく** ことで成立する機能（台帳の定義は overview §1）。アプリ自身は「こっそり遊び」を検知できない（定義上アプリ外）ため、検知をシステムに負わせない（ADR-0001 / ADR-0002）。
 
 ## 2. 比較の単位・対象
 申告 vs 実測を公平に並べるための単位・前処理。閾値による未申告・超過の強調や検出は初期では行わない（ADR-0009。将来追加する場合の判定単位もここに準ずる）。
@@ -15,32 +13,8 @@
 - 比較対象は `chargeable: true` の Activity のみ（教育/連絡等の非課金利用は除外。除外しないと外部合計が常にアプリ記録を上回り、フェアに比べられない）。
 - 項目（ゲーム）単位の照合は v2 以降。ただし「ポイントの記録」側の遊びイベントには「項目名」を記録しておき、後の拡張余地を残す（ADR-0005）。
 
-## 3. データモデル
-### 3.1 イベントログ（ポイントの記録）
-- append-only のイベント列。現在残高はイベントから導出する（event sourcing / ADR-0003）。
-- type 例: `daily_grant` / `task_earn` / `task_approve` / `play_start` / `play_end` / `manual_adjust` / `reconcile` / `repay`
-- 遊びイベントは「項目名」と「実測（タイマー）時間」を保持する。
-- 保持方針: 生イベントは直近 N 日、古いものは日次集計へロールアップ（localStorage 約5MB 対策）。実装タイミングは後段で可。
-
-### 3.2 Activity（計測された記録 / インポート形式 = 解析くんとの契約）
-```json
-{
-  "source": "switch | screentime",
-  "childId": "taro",
-  "date": "2026-06-14",
-  "items": [
-    { "app": "Splatoon 3", "minutes": 75, "category": "game",      "chargeable": true  },
-    { "app": "YouTube",    "minutes": 40, "category": "video",     "chargeable": true  },
-    { "app": "Duolingo",   "minutes": 15, "category": "education", "chargeable": false }
-  ]
-}
-```
-- 1スクショ = 1エクスポート（`source × childId × date`）。
-- `app / minutes / category / chargeable` は解析側（AI）が埋める。
-- インポートは `(childId, date, source, app)` で upsert（冪等。再取り込みで二重計上しない）。
-
-### 3.3 childId マッピング
-- スクショ上の端末名 / ユーザ名 → アプリの `childId` の対応表を持つ。
+## 3. childId マッピング
+- スクショ上の端末名 / ユーザ名 → アプリの `childId` の対応表を持つ（Activity スキーマは overview §4）。
 
 ## 4. 主要フロー
 ### 4.1 取り込み
@@ -68,4 +42,5 @@
 ## 6. 前提・制約・未解決
 - 前提: ScreenTime / みまもりSwitch に Webアプリから読める公式エクスポート API は無い（**要再確認**）。よって取り込みはスクショ + AI解析 + 手動インポートを基本とする。
 - 制約: localStorage 約5MB。長期運用ではイベントのロールアップが要る（この前提の見直し条件は ADR-0004）。
-- **未解決（最初に確定）**: 現状の `state` が取引履歴を持つか、現在残高のみか。→ ビューが即作れるか、イベント記録の追加から要るかが分岐する。
+- **現状把握（確定）**: 現 `state` は **残高中心＋ `history` で部分的な取引履歴**（redeem/auto/approve）を持つ。日替わり付与は未記録で、残高が真実の源（overview §2）。
+- **未解決（T_001 で判断）**: イベントログ化にあたり、既存 `history` を**流用・拡張**するか、新規にイベントモデルを**設計して置き換える**かを比較検討して決める（ADR-0003）。
